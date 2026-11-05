@@ -44,6 +44,18 @@
  Compras
  </x-nav-link>
 @endcan
+                @endcan
+                @can('ver-inventario')
+                    <x-nav-link :href="route('inventory.kardex')" :active="request()->routeIs('inventory.*')">
+                        Kardex
+                    </x-nav-link>
+                @endcan
+                @can('ver-auditoria')
+                    <x-nav-link :href="route('audit.index')" :active="request()->routeIs('audit.*')">
+                        Auditoría
+                    </x-nav-link>
+                @endcan
+                @can('ver-ventas')
 @canany(['ver-usuarios', 'ver-roles', 'ver-permisos'])
  <x-nav-link :href="route('settings.index')" :active="request()->routeIs('settings.*')">
  Configuración
@@ -98,6 +110,16 @@
             @can('ver-compras')
                 <x-responsive-nav-link :href="route('purchases.index')" :active="request()->routeIs('purchases.*')">
                     Compras
+                </x-responsive-nav-link>
+            @endcan
+            @can('ver-inventario')
+                <x-responsive-nav-link :href="route('inventory.kardex')" :active="request()->routeIs('inventory.*')">
+                    Kardex
+                </x-responsive-nav-link>
+            @endcan
+            @can('ver-auditoria')
+                <x-responsive-nav-link :href="route('audit.index')" :active="request()->routeIs('audit.*')">
+                    Auditoría
                 </x-responsive-nav-link>
             @endcan
             @canany(['ver-usuarios', 'ver-roles', 'ver-permisos'])

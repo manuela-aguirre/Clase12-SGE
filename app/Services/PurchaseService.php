@@ -6,12 +6,13 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 class PurchaseService
 {
+ // Clase 12: el stock lo mueve el InventoryService (kardex)
+ public function __construct(private InventoryService $inventory) {}
  /**
  * Registra una ORDEN DE COMPRA (estado "pendiente"). Todavía NO mueve el inventario:
  * el stock solo aumenta cuando la mercancía llega físicamente (método receive).
  *
- * @param array $data ['provider_id' => int, 'purchase_date' => 'Y-m-d', 'provider_invoice' =>
-?string, 'notes' => ?string,
+ * @param array $data ['provider_id' => int, 'purchase_date' => 'Y-m-d', 'provider_invoice' =>?string, 'notes' => ?string,
  * 'items' => [['product_id' => int, 'quantity' => int, 'unit_cost' => float], ...]]
  */
  public function register(array $data, int $userId): Purchase
@@ -87,17 +88,20 @@ admite recepciones.",
  // Regla 3: no se puede recibir más de lo pedido
  if ($quantity > $detail->pendingQuantity()) {
  throw ValidationException::withMessages([
- 'items' => "No se puede recibir más de lo pedido para «{$detail->product?->nombre}».
+ 'items' => "No se puede recibir más de lo pedido para «{$detail->product?->name}».
 "
  ."Pendiente: {$detail->pendingQuantity()}, recibido ahora: {$quantity}.",
  ]);
  }
  // Actualizar la línea y AUMENTAR el stock del producto
  $detail->increment('received_quantity', $quantity);
- Product::withTrashed()
- ->lockForUpdate()
- ->findOrFail($detail->product_id)
- ->increment('stock', $quantity);
+ $this->inventory->entry(
+ Product::withTrashed()->findOrFail($detail->product_id),
+ $quantity,
+ 'compra',
+ $purchase,
+ (float) $detail->unit_cost
+ );
  $receivedSomething = true;
  }
  // Regla 4: una recepción debe traer al menos una unidad
@@ -110,7 +114,7 @@ recepción.',
  // 4. Recalcular el estado de la orden
  $purchase->load('details');
  $complete = $purchase->details->every(fn ($d) => $d->received_quantity >= $d->quantity);
-$purchase->update([
+ $purchase->update([
  'status' => $complete ? 'recibida' : 'parcial',
  'received_at' => $complete ? now() : null,
  'provider_invoice' => $providerInvoice ?: $purchase->provider_invoice,
@@ -119,7 +123,7 @@ $purchase->update([
  });
  }
  /**
- * Anula una orden de compra. Regla: solo si NO ha llegado mercancía (estado "pendiente"),
+  * * Anula una orden de compra. Regla: solo si NO ha llegado mercancía (estado "pendiente"),
  * por lo tanto no hay stock que devolver.
  */
  public function cancel(Purchase $purchase): void

@@ -78,7 +78,7 @@
 									@endif
 								</td>
 								<td>{{ $product->proveedor?->name ?? '—' }}</td>
-								<td>{{ $product->category?->name ?? '—' }}</td>
+								<td>{{ $product->category?->nombre ?? '—' }}</td>
 								<td>
 									<span class="crud-badge {{ $product->stock <= 2 ? 'warn' : '' }}">
 										{{ $product->stock }}

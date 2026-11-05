@@ -1,10 +1,12 @@
 <?php
 namespace App\Models;
+use App\Models\Concerns\Auditable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 class Purchase extends Model
 {
- use SoftDeletes;
+ use Auditable, SoftDeletes;
+ protected string $auditLog = 'compras';
  protected $fillable = [
  'purchase_number',
  'provider_id',

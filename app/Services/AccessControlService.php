@@ -41,8 +41,17 @@ usuario.']);
  $user->email_verified_at = now(); // creado por un administrador: ya verificado
  }
  $user->save();
+ $before = ['roles' => $user->getRoleNames()->sort()->values()->all(),
+ 'permisos_directos' => $user->getDirectPermissions()->pluck('name')->sort()-
+>values()->all()];
  $user->syncRoles($roles);
  $user->syncPermissions($data['permissions'] ?? []); // permisos DIRECTOS
+ // Clase 12: los cambios de seguridad quedan en la bitácora
+ $after = ['roles' => collect($roles)->sort()->values()->all(),
+ 'permisos_directos' => collect($data['permissions'] ?? [])->sort()->values()->all()];
+ if ($before !== $after) {
+ $this->logSecurity($user, 'roles y permisos del usuario modificados', $before, $after);
+ }
  return $user;
  });
  }
@@ -78,17 +87,35 @@ usuario.']);
  'roles' => "Debe existir al menos un usuario activo con el rol «{$admin}».",
  ]);
  }
- }
  /**
  * Guarda los permisos de un rol. El rol administrador siempre conserva todos los permisos.
  */
  public function syncRolePermissions(Role $role, array $permissions): void
  {
+ $before = $role->permissions()->pluck('name')->sort()->values()->all();
  if ($role->name === PermissionCatalog::superRole()) {
  $role->syncPermissions(Permission::all());
- return;
- }
+ } else {
  $role->syncPermissions($permissions);
+ }
+ $after = $role->permissions()->pluck('name')->sort()->values()->all();
+ if ($before !== $after) {
+ $this->logSecurity($role, "permisos del rol «{$role->name}» modificados", ['permisos' =>
+$before], ['permisos' => $after]);
+ }
+ }
+ /**
+ * Clase 12: Spatie no audita roles ni permisos por sí solo; se registra manualmente
+ * con el mismo formato (old / attributes) que usan los modelos auditados.
+ */
+ private function logSecurity($subject, string $description, array $old, array $new): void
+ {
+ activity('seguridad')
+ ->performedOn($subject)
+ ->causedBy(auth()->user())
+ ->event('updated')
+ ->withChanges(['old' => $old, 'attributes' => $new])
+ ->log($description);
  }
  /**
  * Crea un permiso nuevo «accion-modulo» y se lo entrega al rol administrador.
@@ -97,11 +124,11 @@ usuario.']);
  {
  $permission = Permission::create(['name' => "{$action}-{$module}", 'guard_name' =>
 'web']);
-Role::findByName(PermissionCatalog::superRole())->givePermissionTo($permission);
+ Role::findByName(PermissionCatalog::superRole())->givePermissionTo($permission);
  return $permission;
  }
  /**
- * Regla: solo se elimina un permiso que no esté en uso (fuera del rol administrador).
+  * * Regla: solo se elimina un permiso que no esté en uso (fuera del rol administrador).
  */
  public function deletePermission(Permission $permission): void
  {

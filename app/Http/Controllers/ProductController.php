@@ -5,12 +5,20 @@ use App\Http\Requests\UpdateProductRequest;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\Provider;
+use App\Services\InventoryService;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
+use Illuminate\View\View;
 class ProductController extends Controller implements HasMiddleware
 {
- // Permiso de Spatie que exige cada acción
+ /**
+ * Permisos de Spatie requeridos por cada acción.
+ *
+ * @return array<int, Middleware>
+ */
  public static function middleware(): array
  {
  return [
@@ -20,20 +28,21 @@ class ProductController extends Controller implements HasMiddleware
  new Middleware('permission:eliminar-productos', only: ['destroy', 'restore']),
  ];
  }
- public function index(Request $request)
+ public function index(Request $request): View
  {
- // La papelera solo la ve quien puede eliminar
- $showTrashed = $request->boolean('trashed') && $request->user()->can('eliminar-productos');
+ $showTrashed = $request->boolean('trashed') && $request->user()->can('eliminarproductos');
  $products = Product::query()
  ->with(['category', 'proveedor'])
  ->when($showTrashed, fn ($query) => $query->onlyTrashed())
  ->when($request->filled('search'), function ($query) use ($request) {
  $query->where(function ($query) use ($request) {
-$query->where('nombre', 'like', '%'.$request->string('search').'%')
- ->orWhere('descripcion', 'like', '%'.$request->string('search').'%');
+ $query->where('name', 'like', '%'.$request->string('search').'%')
+ ->orWhere('description', 'like', '%'.$request->string('search').'%');
  });
  })
- ->when($request->filled('category'), fn ($query) => $query->where('categoria_id', $request->integer('category')))
+ ->when($request->filled('category'), fn ($query) => $query->where('category_id',
+$request->integer('category')))
+ ->when($request->filled('status'), fn ($query) => $query->where('active', $request->input('status') === 'active'))
  ->latest($showTrashed ? 'deleted_at' : 'created_at')
  ->paginate(10)
  ->withQueryString();
@@ -44,52 +53,59 @@ $query->where('nombre', 'like', '%'.$request->string('search').'%')
  'trashedCount' => Product::onlyTrashed()->count(),
  ]);
  }
- public function create()
+ public function create(): View
  {
  return view('products.create', [
- 'product' => new Product(['stock' => 0]),
+ 'product' => new Product(['active' => true, 'stock' => 0]),
  'categories' => $this->selectableCategories(),
- 'proveedores' => Provider::orderBy('name')->get(),
+ 'proveedores' => Provider::where('active', true)->orderBy('name')->get(['id', 'name']),
  ]);
  }
- public function store(StoreProductRequest $request)
+ public function store(StoreProductRequest $request, InventoryService $inventory):
+RedirectResponse
  {
- Product::create($request->validated());
+ $product = Product::create($request->validated());
+ // Clase 12: el stock con el que se crea queda como «inventario inicial» en el kardex
+ $inventory->opening($product);
  return redirect()->route('products.index')
  ->with('success', 'Producto creado exitosamente.');
  }
- public function edit(Product $product)
+ public function edit(Product $product): View
  {
  return view('products.edit', [
  'product' => $product,
  'categories' => $this->selectableCategories(),
- 'proveedores' => Provider::orderBy('name')->get(),
+ 'proveedores' => Provider::where('active', true)->orderBy('name')->get(['id', 'name']),
  ]);
  }
- public function update(UpdateProductRequest $request, Product $product)
+ public function update(UpdateProductRequest $request, Product $product):
+RedirectResponse
  {
  $product->update($request->validated());
  return redirect()->route('products.index')
  ->with('success', 'Producto actualizado exitosamente.');
  }
- // Soft delete: el producto va a la papelera (se llena deleted_at)
- public function destroy(Product $product)
+ public function destroy(Product $product): RedirectResponse
  {
  $product->delete();
  return redirect()->route('products.index')
- ->with('success', "Producto «{$product->nombre}» enviado a la papelera.");
+ ->with('success', "Producto «{$product->name}» enviado a la papelera.");
  }
- public function restore(Product $product)
+ public function restore(Product $product): RedirectResponse
  {
  if ($product->category?->trashed()) {
- return back()->with('error', "Restaura primero la categoría «{$product->category->nombre}».");
+ return back()->with('error', "Restaura primero la categoría «{$product->category->name}».");
  }
  $product->restore();
  return redirect()->route('products.index', ['trashed' => 1])
- ->with('success', "Producto «{$product->nombre}» restaurado.");
+ ->with('success', "Producto «{$product->name}» restaurado.");
  }
- // Solo las categorías activas se pueden asignar a un producto
- private function selectableCategories()
+ /**
+ * Categorías que se pueden asignar a un producto.
+ *
+ * @return Collection<int, Category>
+ */
+ private function selectableCategories(): Collection
  {
  return Category::orderBy('nombre')->get(['id', 'nombre']);
  }

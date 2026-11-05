@@ -11,6 +11,11 @@ space-y-4">
  @include('products._form')
  <div class="flex items-center gap-4">
  <x-primary-button>Guardar cambios</x-primary-button>
+ @can('ajustar-inventario')
+ @unless ($product->trashed())
+ <a href="{{ route('inventory.adjust', $product) }}" class="underline">Ajustar inventario</a>
+ @endunless
+ @endcan
  <a href="{{ route('products.index') }}" class="underline">Cancelar</a>
  </div>
  </form>

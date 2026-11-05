@@ -41,7 +41,7 @@
 			<select id="proveedor_id" name="proveedor_id" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm" required>
 				<option value="">Selecciona un proveedor</option>
 				@foreach ($proveedores as $proveedor)
-					<option value="{{ $proveedor->id }}" @selected(old('proveedor_id', $product->proveedor_id) == $proveedor->id)>{{ $proveedor->nombre }}</option>
+					<option value="{{ $proveedor->id }}" @selected(old('proveedor_id', $product->proveedor_id) == $proveedor->id)>{{ $proveedor->name }}</option>
 				@endforeach
 			</select>
 			<x-input-error class="mt-2" :messages="$errors->get('proveedor_id')" />
